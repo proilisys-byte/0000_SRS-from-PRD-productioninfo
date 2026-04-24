@@ -4,9 +4,20 @@ about: SRS 기반의 구체적인 개발 태스크 명세
 title: "[Feature] SA-C-002: Audit 리포트 생성 — Gemini AI 매핑 엔진 연동"
 labels: 'feature, backend, ai, priority:critical, sprint:1'
 assignees: ''
+requires_human_review: true
 ---
 
-## :dart: Summary
+## ⚠️ DEPRECATED — 이 태스크는 4개로 분리되었습니다 (v2 리팩토링)
+
+> **이 파일은 더 이상 사용하지 마세요.** 아래 4개 SPEC으로 대체되었습니다:
+> - [`07_TASK_SPEC_SA-C-002a.md`](./07_TASK_SPEC_SA-C-002a.md) — 입력 데이터 정규화 (rule-based)
+> - [`07_TASK_SPEC_SA-C-002b.md`](./07_TASK_SPEC_SA-C-002b.md) — AI 매핑 (LLM)
+> - [`07_TASK_SPEC_SA-C-002c.md`](./07_TASK_SPEC_SA-C-002c.md) — 결과 검증 (rule + schema)
+> - [`07_TASK_SPEC_SA-C-002d.md`](./07_TASK_SPEC_SA-C-002d.md) — Fallback (AI 실패 시)
+
+---
+
+## :dart: Summary (원본 — 참고용)
 - 기능명: [SA-C-002] Audit 리포트 생성 Server Action — Gemini AI 매핑 엔진 연동
 - 목적: 현장 RAW_DATA와 원청 TEMPLATE을 기반으로 Gemini AI 매핑 엔진을 활용하여 ISO 규격 Audit 증빙 리포트를 자동 생성한다. Vercel AI SDK `streamText`로 60초 타임아웃을 우회하고 클라이언트 측 PDF 렌더링으로 최종 결과물을 제공한다.
 
@@ -17,6 +28,15 @@ assignees: ''
 - 데이터 모델: [`05_SRS_v1.md#§6.2.3~6.2.4, §6.2.8`] — AUDIT_SESSION, AUDIT_REPORT, TEMPLATE
 - API 명세: [`05_SRS_v1.md#§6.1 #1~2`] — POST/GET /api/v1/audit/reports
 - 기술 제약: [`05_SRS_v1.md#§3.6.2`] — Edge Runtime & Streaming 아키텍처
+- 프로젝트 컨텍스트: [`PROJECT_CONTEXT.md`] — 디렉토리 구조, 환경 변수, 코딩 컨벤션
+
+> 🔍 **requires_human_review: true** — H 복잡도. AI 초안 생성 후 시니어 리뷰 필수.
+
+## 📁 Implementation Paths
+- `src/app/actions/audit/generateReport.ts` — Server Action 엔트리포인트
+- `src/lib/ai/audit-mapper.ts` — Gemini AI 매핑 엔진
+- `src/lib/validations/audit-report.ts` — Zod 입력 검증 스키마
+- `src/types/dto/audit.ts` — Audit DTO 타입 정의
 
 ## :white_check_mark: Task Breakdown (실행 계획)
 - [ ] Server Action 엔트리포인트 구현 (`generateReport.ts`, Zod 입력 검증)

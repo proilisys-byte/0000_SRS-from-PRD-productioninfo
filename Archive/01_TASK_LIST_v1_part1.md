@@ -83,7 +83,7 @@
 | SA-Q-004 | SmartAudit/Query | 리포트 버전 이력 비교 diff 조회 로직 구현 | REQ-FUNC-005 | SA-Q-003 | M |
 | SA-Q-005 | SmartAudit/Query | 품질 이상 탐지 Trend 분석 데이터 조회 (과거 3개월) | REQ-FUNC-003 | DB-003 | M |
 | SA-C-001 | SmartAudit/Command | 커스텀 템플릿 등록 Server Action (POST /api/v1/templates) | §6.1 #12 | DB-004, AUTH-C-005 | M |
-| SA-C-002 | SmartAudit/Command | Audit 리포트 생성 Server Action — Gemini AI 매핑 엔진 연동 (Vercel AI SDK streamText) | REQ-FUNC-001, REQ-FUNC-002 | DB-003, DB-005, DB-006, SA-Q-001 | H |
+| SA-C-002 | SmartAudit/Command | Audit 리포트 생성 Server Action — Gemini AI 매핑 엔진 연동 (Vercel AI SDK streamText) 🔍 | REQ-FUNC-001, REQ-FUNC-002 | DB-003, DB-005, DB-006, SA-Q-001, INT-C-001 | H |
 | SA-C-003 | SmartAudit/Command | 리포트 생성 시 AUDIT_LOG SHA-256 해시 체인 기록 로직 | REQ-FUNC-001, REQ-FUNC-024 | DB-010, SA-C-002 | M |
 
 ### Epic 6: 긴급 NC 시정 패키지
@@ -92,10 +92,12 @@
 |---|---|---|---|---|---|
 | NC-Q-001 | NC/Query | NC 케이스 상세 및 시정 진행 상태 조회 (GET /api/v1/nc/cases/{nc_id}) | §6.1 #6 | DB-007, DB-008, API-004 | L |
 | NC-Q-002 | NC/Query | 유사 NC 사례 검색 (동일 nc_code 기반 최대 5건) | REQ-FUNC-010 | DB-007 | M |
-| NC-C-001 | NC/Command | NC 케이스 등록 + AI 사유 파싱 + 시정 초안 자동 생성 (POST /api/v1/nc/cases) | REQ-FUNC-006 | DB-007, DB-008, NC-Q-002 | H |
+| NC-C-001a | NC/Command | NC 케이스 등록 Server Action (순수 CRUD — Zod 검증, NC_CASE 생성) | REQ-FUNC-006 | DB-007, DB-008, API-004 | M |
+| NC-C-001b | NC/Command | AI 사유 파싱 + 시정 초안 자동 생성 엔진 (Gemini AI 연동) 🔍 | REQ-FUNC-006 | NC-C-001a, NC-Q-002 | H |
+| NC-C-001c | NC/Command | Critical 에스컬레이션 이벤트 발행 + AUDIT_LOG 기록 | REQ-FUNC-006, REQ-FUNC-009 | NC-C-001a, INT-C-001 | M |
 | NC-C-002 | NC/Command | 시정 조치 상태·진행률 갱신 (PATCH .../actions/{action_id}) | REQ-FUNC-007 | DB-008, API-004 | M |
-| NC-C-003 | NC/Command | 시정 전후 무결성 비교 보고서 생성 (SHA-256 메타데이터 포함) | REQ-FUNC-008 | NC-C-002, DB-011 | H |
-| NC-C-004 | NC/Command | Critical 심각도 에스컬레이션 알림 발송 로직 (24h 카운트다운, 4h 간격) | REQ-FUNC-009 | NC-C-001 | M |
+| NC-C-003 | NC/Command | 시정 전후 무결성 비교 보고서 생성 (SHA-256 메타데이터 포함) 🔍 | REQ-FUNC-008 | NC-C-002, DB-011, INT-C-001 | H |
+| NC-C-004 | NC/Command | Critical 심각도 에스컬레이션 알림 발송 로직 (24h 카운트다운, 4h 간격) | REQ-FUNC-009 | NC-C-001c | M |
 
 ### Epic 7: Zero-UI 수집기
 
