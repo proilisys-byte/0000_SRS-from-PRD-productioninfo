@@ -23,6 +23,14 @@ PRO ILI SMART는 중소 제조기업을 위한 스마트 제조 품질혁신 플
 | **DEC-006** | 기반 공사 격상 | `확정` | Auth / RBAC / Insert-only Audit Log를 Sprint 1 최우선 개발 |
 | **DEC-007** | NC 시정 Sprint 2 배치 | `확정` | 기반 데이터 및 인프라 확보 후 Sprint 2에서 개발 |
 | **DEC-008** | Lean/COPQ Sprint 3 배치 | `확정` | 누적 데이터(최소 7일) 필요성에 따라 Sprint 3로 배치 |
+| **DEC-009** | 다국어 언어 목록 정정 | `확정` | 인도네시아/태국 → 네팔/캄보디아로 SRS REQ-NF-PRIV-001 정합 |
+| **DEC-010** | Vision AI 성능 목표 정정 | `확정` | p95 8초 → 2초로 SRS REQ-NF-003 준수 정정 |
+| **DEC-011** | Sprint 1 DoD 재정렬 | `확정` | MFA(→Sprint 4 T4-003), PIPA 팝업(→Sprint 4 T4-002)을 Sprint 1 DoD에서 제거 |
+| **DEC-012** | 중복 문서 통합 (F1-C-001) | `확정` | 세션 관리 중복 파일 병합 후 정본 1개로 일원화, 원본 Archive 처리 |
+| **DEC-013** | 의존성 다이어그램 현대화 | `확정` | T1-010~T1-014 반영, 구버전 10번 다이어그램 Archive 처리 |
+| **DEC-014** | 로그인 보안 정책 반영 | `확정` | UI-001에 비밀번호 정책(12자/3종), 계정 잠금(5회/15분), 유휴 30분 로그아웃, MFA 범위 Sprint 4 정정 |
+| **DEC-015** | AI 거버넌스 통합 | `확정` | API-AI_PIPELINE에 §4 AI 거버넌스(Model Card, Drift 감지, HitL, Golden Dataset WER) 추가 |
+| **DEC-016** | 이력성 문서 Archive 정리 | `확정` | 02, 05, 07, 09 이력성 문서 4건 → Archive 이관. SSOT 강화 |
 
 ---
 

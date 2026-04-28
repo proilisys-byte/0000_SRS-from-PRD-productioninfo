@@ -14,14 +14,15 @@ assignees: ''
 > 작업 시작 전 아래 문서를 반드시 먼저 읽고 정합성을 유지할 것.
 - Query API 명세: `F1-Q-001_audit_report_query.md`
 - 상세 화면 명세: `UI-010_audit_workspace_page.md`
-- Mock 데이터: `MOCK-003_audit_list_mock_endpoint.md` (예정)
+- Mock 데이터: `MOCK-003_audit_list_mock_endpoint.md`
+- **Pagination 정본**: `F1-C-001_audit_session_management.md` Appendix A-4 (Cursor 기반)
 
 ## 🧭 Scope
 ### In Scope
 - 세션 목록 데이터 표출 (Table 또는 List UI)
 - 검색 기능 (세션명, 작성자 등)
 - 필터링 기능 (상태별: Draft, Submitted 등, 날짜별)
-- 페이지네이션 로직 연동
+- **Cursor 기반 페이지네이션** 로직 연동 (`F1-C-001` Appendix A-4 준수)
 - 개별 항목 클릭 시 Workspace 진입 연동
 
 ### Out of Scope
@@ -38,9 +39,10 @@ assignees: ''
 ## ✅ Task Breakdown (실행 계획)
 - [ ] 데이터 테이블 레이아웃 및 컬럼 구성 (ID, 제목, 상태, 작성자, 수정일)
 - [ ] 필터 컴포넌트(Select Box, Date Picker 등) 구현
-- [ ] Pagination/Infinite Scroll UI 및 데이터 패칭 훅 작성
+- [ ] **Cursor 기반** Pagination UI 및 데이터 패칭 훅 작성 (Appendix A-4 Zod 스키마 적용)
 - [ ] 상태별(Badge) 색상 및 아이콘 UI 적용
 - [ ] API 연동 및 빈 상태(Empty State) 예외 처리
+- [ ] **대량 데이터(10,000건+) 환경 가상 스크롤 또는 점진적 로딩 적용**
 
 ## 🧪 Acceptance Criteria (BDD / GWT)
 Scenario 1: 리스트 정상 조회
@@ -58,13 +60,26 @@ Scenario 3: 권한 기반 데이터 제한
 - When: 전체 목록 조회를 요청한다.
 - Then: B 테넌트의 세션은 절대 리스트에 나타나지 않는다 (API 레벨 필터링을 UI에서 정상 표출).
 
+Scenario 4: 성능 기준 충족
+- Given: 테넌트 내에 1,000건 이상의 세션 데이터가 존재한다.
+- When: Session List 화면에 최초 진입한다.
+- Then: LCP(Largest Contentful Paint) **≤ 2.5초** 이내에 첫 페이지 목록이 렌더링된다.
+
+Scenario 5: 빈 결과 처리
+- Given: 테넌트 내에 세션 데이터가 0건이거나 필터 조건에 맞는 결과가 없다.
+- When: 조회를 시도한다.
+- Then: "등록된 세션이 없습니다. 새 세션을 시작해보세요." Empty State UI가 표시된다.
+
 ## 🔐 Technical / Domain Constraints
 - 권한/RBAC 규칙:
   - Tenant Admin은 모든 세션, 일반 User는 본인 관련 세션만 보이게 될 수 있음(API 응답 결과에 종속)
 - 공통 에러 스키마 연계:
   - 리스트 조회 실패(500) 시 에러 바운더리 또는 Fallback UI 제공
 - 성능 / 운영 제약:
-  - 렌더링 최적화를 위해 불필요한 리렌더링 억제 및 디바운스(검색창) 적용
+  - 렌더링 최적화를 위해 불필요한 리렌더링 억제 및 디바운스(검색창, 300ms) 적용
+  - **LCP 목표: ≤ 2.5초** (1,000건 기준)
+  - **데이터 볼륨 상한: 테넌트당 최대 10,000건** 지원 (이후 아카이빙 정책 적용)
+  - **Pagination**: Cursor 기반 (Offset 방지) — `F1-C-001` Appendix A-4 SSOT 준수
 
 ## 📦 Deliverables
 - 산출 문서/코드/테스트/Mock/연계 결과:

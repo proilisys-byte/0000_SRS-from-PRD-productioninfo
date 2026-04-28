@@ -239,6 +239,93 @@
 
 ---
 
+## Appendix A. 세션 불변성 보장 구현 코드 (F1-C-001_session_management.md 통합분)
+
+> **[통합 이력]** 본 섹션은 기존 `F1-C-001_session_management.md` (8KB)의 고유 구현 상세(RLS SQL, 앱 레벨 선검사, 삭제 금지 정책)를 정본 문서에 병합한 것이다. 원본 파일은 중복 해소를 위해 Archive 처리됨.
+
+### A-1. Supabase RLS(Row Level Security) 적용 SQL
+
+Supabase 단에서 쿼리 실행을 거부하는 방어벽을 구축한다.
+
+```sql
+-- audit_data_entries (세션 데이터) 테이블 수정/삭제 차단
+CREATE POLICY "Block update on entries if session completed" ON audit_data_entries
+FOR UPDATE
+USING (
+  (SELECT status FROM audit_sessions WHERE id = audit_data_entries.session_id) NOT IN ('COMPLETED', 'ARCHIVED')
+);
+
+CREATE POLICY "Block delete strictly" ON audit_data_entries
+FOR DELETE
+USING (false); -- 데이터 삭제는 상태 무관 영구 금지 (Insert-only)
+```
+
+### A-2. 앱 레벨 선검사 (Server Action Guard)
+
+Server Action이나 Route Handler의 최상단에서 DB RLS 도달 전에 미리 쳐내는 로직.
+
+```typescript
+const session = await prisma.audit_sessions.findUnique({ select: { status: true }});
+if (['COMPLETED', 'ARCHIVED'].includes(session.status)) {
+  throw new AppError('INVALID_STATE_TRANSITION', '완료된 세션은 수정할 수 없습니다.', 422);
+}
+```
+
+### A-3. 삭제 금지 정책
+
+- 프로젝트 내에 `DELETE FROM audit_sessions` 코드는 존재해서는 안 된다.
+- 오기입으로 인한 취소 처리는 `status = 'ARCHIVED'` 상태 업데이트로만 수행(Soft Delete의 변형)하여 DB에 영구 보존한다.
+
+### A-4. Cursor Pagination 기반 세션 목록 조회 (UI-011 연동)
+
+무한 스크롤(Infinite Scroll) 환경에서 대용량 세션을 지연 없이 조회하기 위한 Cursor Pagination 기반 쿼리 명세이다.
+
+**필터 파라미터 스키마 (Zod)**
+```typescript
+export const SessionQuerySchema = z.object({
+  status: z.enum(['DRAFT', 'IN_PROGRESS', 'PENDING_REVIEW', 'COMPLETED', 'ARCHIVED', 'ALL']).default('ALL'),
+  auditType: z.string().optional(),
+  assigneeId: z.string().uuid().optional(),
+  cursor: z.string().optional(), // Prisma의 경우 대상 레코드의 ID (UUID)
+  limit: z.number().min(5).max(100).default(20),
+});
+```
+
+**Prisma 쿼리 예시**
+```typescript
+const { status, assigneeId, cursor, limit } = SessionQuerySchema.parse(reqQuery);
+
+const queryArgs: any = {
+  take: limit + 1, // 다음 페이지 유무 확인을 위해 하나 더 가져옴
+  orderBy: { updated_at: 'desc' },
+  where: {
+    ...(status !== 'ALL' && { status }),
+    ...(assigneeId && { assignee_id: assigneeId }),
+  }
+};
+
+if (cursor) {
+  queryArgs.cursor = { id: cursor };
+  queryArgs.skip = 1; // 기준 cursor 레코드는 제외하고 다음부터 반환
+}
+
+const sessions = await prisma.audit_sessions.findMany(queryArgs);
+
+let nextCursor: string | undefined = undefined;
+if (sessions.length > limit) {
+  const nextItem = sessions.pop(); // 초과 조회한 1건 제거
+  nextCursor = nextItem!.id;
+}
+
+return {
+  items: sessions,
+  nextCursor,
+  hasMore: nextCursor !== undefined
+};
+```
+
+---
+
 ### Gemini 3.1 Pro 자체 검토 체크포인트
 
 1. [x] **세션 생명주기 완비**: Create -> Start -> Save -> Submit -> Finalize 흐름이 누락 없이 표와 텍스트로 정의되었는가?

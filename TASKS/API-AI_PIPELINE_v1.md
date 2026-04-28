@@ -125,3 +125,115 @@ export async function fetchWithBackoff(fn: () => Promise<any>, maxRetries = 3) {
 
 ### C. 요청 큐잉 전략
 * 동시다발적인 요청은 Vercel 환경에서 즉각 처리가 불가할 수 있으므로, 단기적으로는 클라이언트 측 분산 요청을 유도하고, 장기적으로(또는 오류 빈발 시) **Upstash QStash**를 도입하여 백그라운드 큐 기반 비동기 웹훅 처리 아키텍처로 전환합니다.
+
+---
+
+## 4. AI 거버넌스 통합 명세 (REQ-FUNC-AI-001 ~ 008)
+
+> **참조**: `T1-010 Golden Dataset`, `T1-011 AI 품질 파이프라인`, `01_TASK_LIST_v2.md` §3
+
+### A. Golden Dataset 기반 직접 WER 측정 (T1-010 → T1-011 연동)
+
+§1.C의 Fallback율 간접 측정만으로는 SRS REQ-FUNC-011(STT 정확도 92%)의 엄밀한 검증이 불가합니다. 아래 직접 측정 로직을 CI/CD에 통합합니다.
+
+* **Golden Dataset 구조** (T1-010):
+  - STT: 100건 이상 정답지 음성 + 기대 JSON 출력 쌍
+  - Mapping: 50건 이상 입력 데이터 + 기대 ISO 매핑 출력 쌍
+  - 저장: DVC(Data Version Control)로 버전 관리, S3 백엔드
+
+* **자동 채점 스크립트** (T1-011):
+```typescript
+// scripts/evaluate-stt.ts
+import { SttOutputSchema } from '@/lib/schemas/stt';
+
+interface GoldenSample {
+  audio_path: string;
+  expected: { process_name: string; quantity: number; defect_code?: string };
+}
+
+export async function evaluateSTT(samples: GoldenSample[]): Promise<{
+  accuracy: number;
+  f1_score: number;
+  failed_samples: string[];
+}> {
+  let correct = 0;
+  const failed: string[] = [];
+  
+  for (const sample of samples) {
+    const result = await callSTTEndpoint(sample.audio_path);
+    const parsed = SttOutputSchema.safeParse(result);
+    
+    if (parsed.success 
+        && parsed.data.process_name === sample.expected.process_name
+        && parsed.data.quantity === sample.expected.quantity) {
+      correct++;
+    } else {
+      failed.push(sample.audio_path);
+    }
+  }
+  
+  return {
+    accuracy: correct / samples.length,
+    f1_score: calculateF1(samples, correct), // precision·recall 가중 평균
+    failed_samples: failed,
+  };
+}
+```
+
+* **CI/CD 게이트**: GitHub Actions에서 `npm run evaluate:stt` 실행 → 정확도 < 92% 시 **PR 머지 차단**
+
+### B. Model Card 메타데이터 검증 (REQ-FUNC-AI-001)
+
+배포 시 아래 JSON 스키마를 Zod로 검증하여 Model Card가 누락 없이 등록되었는지 확인합니다.
+
+```typescript
+export const ModelCardSchema = z.object({
+  model_name: z.string(),
+  version: z.string().regex(/^\d+\.\d+\.\d+$/),
+  provider: z.literal('google'),
+  model_id: z.string(),  // e.g., 'gemini-1.5-pro-latest'
+  intended_use: z.string(),
+  training_data_summary: z.string().optional(),
+  performance_metrics: z.object({
+    stt_accuracy: z.number().min(0).max(1),
+    mapping_f1_score: z.number().min(0).max(1),
+  }),
+  last_evaluated: z.string().datetime(),
+  approved_by: z.string().optional(),  // HitL 승인자
+});
+```
+
+### C. Drift 감지 및 경고 (REQ-FUNC-AI-004)
+
+* **측정 주기**: Golden Dataset 대비 정확도를 **주 1회** 자동 실행하여 기준선(Baseline) 대비 오차 모니터링
+* **경고 조건**: 정확도가 Baseline 대비 **5%p 이상 하락** 시 Slack 알림 + Observability 대시보드 기록
+* **대응**: 프롬프트 Tuning 또는 모델 버전 롤백 검토 후 HitL 승인 프로세스 진입
+
+### D. HitL(Human-in-the-Loop) 강제 프로세스 (REQ-FUNC-AI-006)
+
+* **적용 범위**: AI 모델 변경, 프롬프트 대규모 수정, Golden Dataset 갱신 시
+* **프로세스**:
+  1. 변경 사항을 적용한 Feature Branch에서 `evaluate:stt` + `evaluate:mapping` 실행
+  2. 결과 리포트를 Pull Request에 자동 코멘트로 첨부
+  3. 지정 승인자(AI팀 리드)가 **Approve** 하기 전까지 Main 머지 차단
+  4. 승인 후 Model Card의 `approved_by` 필드 자동 갱신
+
+### E. 일관성 검증 큐 (REQ-FUNC-AI-005)
+
+* 동일 입력에 대해 **N=3회 반복 추론** 실행
+* 결과 간 분산(Variance)이 임계치 초과 시 → 리뷰 큐로 라우팅
+* 리뷰 큐 아이템은 HitL 승인 없이 자동 저장되지 않음
+
+---
+
+## 5. SRS 트레이서빌리티
+
+| SRS REQ ID | 요구사항 | 반영 위치 |
+|:---|:---|:---|
+| REQ-FUNC-011 | STT 정확도 ≥ 92% | §1.C (Fallback율) + §4.A (Golden Dataset WER) |
+| REQ-FUNC-AI-001 | Model Card 메타데이터 검증 | §4.B |
+| REQ-FUNC-AI-004 | Drift 감지 경고 | §4.C |
+| REQ-FUNC-AI-005 | 일관성 검증 큐 | §4.E |
+| REQ-FUNC-AI-006 | HitL 강제 프로세스 | §4.D |
+| REQ-NF-003 | AI 응답 p95 ≤ 2초 | §2.B (Streaming 타임아웃 방어) |
+

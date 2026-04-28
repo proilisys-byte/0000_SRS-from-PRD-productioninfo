@@ -35,10 +35,48 @@ assignees: ''
 
 ## ✅ Task Breakdown (실행 계획)
 - [ ] Mock 데이터 팩토리 작성 (UUID, 임의 텍스트, 랜덤 상태값 생성)
-- [ ] Request Query Parameter (`page`, `limit`, `status`, `tenant_id`) 파싱 로직 작성
+- [ ] Request Query Parameter (`cursor`, `limit`, `status`, `tenant_id`) 파싱 로직 작성
 - [ ] 필터 조건에 따른 Array 필터링 로직 구현
-- [ ] Response Payload (Items 배열 + Pagination 메타데이터) 구성
+- [ ] Response Payload (Items 배열 + Cursor Pagination 메타데이터) 구성
 - [ ] `X-Mock-Scenario` 헤더에 따른 400, 403, 500 에러 및 타임아웃 반환 분기 작성
+- [ ] **Empty(0건), Large(100건+) 시나리오 테스트 케이스 추가**
+
+### Mock 데이터 팩토리 필드 명세
+
+| 필드 | 타입 | 생성 규칙 | 예시 |
+|:---|:---|:---|:---|
+| `id` | UUID v4 | `crypto.randomUUID()` | `"a1b2c3d4-..."` |
+| `title` | string | `"Audit Session #{index}"` | `"Audit Session #1"` |
+| `status` | enum | `Draft`(40%), `In_Progress`(30%), `Submitted`(20%), `Finalized`(10%) | `"Draft"` |
+| `created_by` | string | 테스트 사용자명 3명 랜덤 | `"김철수"` |
+| `created_at` | ISO 8601 | 최근 30일 내 랜덤 | `"2026-04-20T09:30:00Z"` |
+| `updated_at` | ISO 8601 | `created_at` 이후 랜덤 | `"2026-04-22T14:15:00Z"` |
+| `tenant_id` | UUID v4 | 고정 2개 테넌트 중 랜덤 | `"t-001-..."` |
+| `entry_count` | number | 0~100 랜덤 | `42` |
+
+### 응답 JSON 페이로드 구조 (Cursor Pagination)
+```json
+{
+  "items": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "title": "Audit Session #1",
+      "status": "Draft",
+      "created_by": "김철수",
+      "created_at": "2026-04-20T09:30:00Z",
+      "updated_at": "2026-04-22T14:15:00Z",
+      "tenant_id": "t-001-xxxx",
+      "entry_count": 42
+    }
+  ],
+  "pagination": {
+    "next_cursor": "eyJpZCI6ImExYjJjM2Q0Li4uIn0=",
+    "has_next": true,
+    "total_count": 156,
+    "limit": 20
+  }
+}
+```
 
 ## 🧪 Acceptance Criteria (BDD / GWT)
 Scenario 1: 정상 리스트 반환
@@ -55,6 +93,16 @@ Scenario 3: 타임아웃 테스트 (에러 트리거)
 - Given: `X-Mock-Scenario: TIMEOUT` 헤더를 포함하여
 - When: 엔드포인트를 호출한다.
 - Then: 응답이 3초간 지연된 후, 504 Gateway Timeout (또는 임의의 지연 효과) 오류가 발생한다.
+
+Scenario 4: 빈 결과 반환 (Edge Case)
+- Given: `X-Mock-Scenario: EMPTY` 헤더를 포함하여
+- When: 엔드포인트를 호출한다.
+- Then: `items` 배열이 빈 배열(`[]`)이고 `total_count: 0`, `has_next: false`로 반환된다.
+
+Scenario 5: 대량 결과 반환 (Edge Case)
+- Given: `X-Mock-Scenario: LARGE` 헤더를 포함하고 `limit=100`으로 요청
+- When: 엔드포인트를 호출한다.
+- Then: 100건의 아이템이 반환되고 `has_next: true`, 유효한 `next_cursor`가 포함된다.
 
 ## 🔐 Technical / Domain Constraints
 - 공통 에러 스키마 연계:

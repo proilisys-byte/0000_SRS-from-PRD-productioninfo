@@ -155,6 +155,33 @@ export const VisionAnalysisSchema = z.object({
 
 ## 7. 성능 및 품질 기준
 
-- **목표 응답 시간**: 이미지 Base64 전송 시작부터 JSON 응답 렌더링까지 **8초 이내 (p95)** 달성. 초과 시 낙관적 UI(Optimistic UI) 렌더링으로 지연 체감 완화.
+- **목표 응답 시간**: 이미지 Base64 전송 시작부터 JSON 응답 렌더링까지 **2초 이내 (p95)** 달성 *(SRS REQ-NF-003 준수)*. 초과 시 낙관적 UI(Optimistic UI) 렌더링으로 지연 체감 완화.
+  - **최적화 전략**: 클라이언트 사이드 이미지 전처리(WebP 압축, 1080px 다운사이징)로 전송 페이로드를 최소화하고, Edge Runtime 활용으로 Cold Start를 제거하여 p95 ≤ 2초 목표 달성.
 - **정확도 로깅**: 관리자가 대시보드에서 `needs_review` 판정 결과를 뒤집었을 경우(예: AI는 Fail, 사람은 Pass), 해당 이미지와 프롬프트, 응답 JSON을 `ai_feedback_loops` 테이블에 저장.
 - **개선 사이클**: Sprint 주기로 축적된 피드백 오답 노트를 기반으로 System Prompt의 Few-shot 예제를 업데이트(Prompt Engineering 주기적 수행).
+
+---
+
+## 8. Edge 가명처리 (REQ-NF-PRIV-003 준수)
+
+Vision AI 구동 시 개인정보보호법 제28조의2에 따른 가명처리 원칙을 준수한다.
+
+- **얼굴 마스킹**: 이미지 내 얼굴 영역을 자동 탐지하여 블러/모자이크 처리 후 API로 전송
+  - **처리 위치**: Edge(클라이언트) 단에서 전처리 시 Canvas API 기반 마스킹 적용
+  - **탐지 방법**: 경량 얼굴 탐지 모델(MediaPipe Face Detection 또는 TensorFlow.js BlazeFace) 활용
+  - **검증 기준**: 가명처리 미적용 이미지 전송 건수 = **0건** (네트워크 프록시 레벨 검증)
+- **EXIF 정보 제거**: §2.B의 Canvas API 전처리 과정에서 GPS 좌표 등 위치 메타데이터 자동 탈락
+
+---
+
+## 9. Vision AI Golden Dataset 기준 (T1-010 연동)
+
+STT Golden Dataset(100건)과 병행하여 Vision AI 검증용 정답지를 별도 구축한다.
+
+| 항목 | 기준 | 비고 |
+|:---|:---|:---|
+| **정답지 규모** | 최소 50장 (defect 30, measurement 10, work_status 10) | Sprint 2 착수 전 확보 |
+| **조도 분포** | 정상 조도 60%, 저조도 25%, 역광 15% | 현장 환경 재현 |
+| **메타데이터** | process_code, expected_result, actual_label, image_condition | DVC 버전 관리 |
+| **라벨링 기준** | 2인 교차 검증 (IAA ≥ 0.85) | 편향 방지 |
+| **검증 파이프라인** | T1-011의 F1-Score 자동 산출 스크립트에 Vision 평가 셋 통합 | CI 연동 |

@@ -22,10 +22,13 @@ assignees: ''
 - 로그인 성공 시 홈(또는 대시보드) 리다이렉트
 - 로그인 실패 시 에러 메시지(Validation, 401 등) 표시
 - 자동 로그인(Remember Me) 토글
+- **비밀번호 정책 클라이언트 Validation** (SRS REQ-NF-SEC-AUTH-003)
+- **연속 실패 시 계정 잠금 안내 UI** (SRS REQ-NF-SEC-AUTH-005)
+- **유휴 30분 자동 로그아웃 처리** (SRS REQ-NF-SEC-AUTH-004)
 
 ### Out of Scope
 - 비밀번호 찾기 기능 (추가 기획 대기)
-- 다중 인증(MFA) 흐름 (Sprint 2+)
+- 다중 인증(MFA) 흐름 (Sprint 4 T4-003, `01_TASK_LIST_v2.md` 참조)
 
 ## 🧱 Preconditions
 - 선행 완료 문서:
@@ -37,10 +40,34 @@ assignees: ''
 
 ## ✅ Task Breakdown (실행 계획)
 - [ ] 레이아웃 및 폼 컴포넌트 마크업
-- [ ] 클라이언트 사이드 Form Validation (빈 값, 이메일 형식 확인 등)
+- [ ] 클라이언트 사이드 Form Validation (빈 값, 이메일 형식, **비밀번호 정책**)
 - [ ] 로그인 API(`POST /api/auth/login`) 연동 로직
 - [ ] API 에러 응답 수신 시 UI 알림(Toast 또는 폼 에러 메시지) 처리
 - [ ] 인증 성공 시 JWT/세션 기반 Auth Context 업데이트 및 `router.push` 처리
+- [ ] **계정 잠금(429) 응답 시 남은 잠금 시간 표시 UI**
+- [ ] **유휴 30분 감지 → 세션 만료 모달 → 로그인 리다이렉트 로직**
+
+### 비밀번호 정책 Zod 스키마 (REQ-NF-SEC-AUTH-003)
+```typescript
+import { z } from 'zod';
+
+export const PasswordSchema = z.string()
+  .min(12, '비밀번호는 12자 이상이어야 합니다')
+  .refine((pw) => {
+    const checks = [
+      /[A-Z]/.test(pw),   // 대문자
+      /[a-z]/.test(pw),   // 소문자
+      /[0-9]/.test(pw),   // 숫자
+      /[^A-Za-z0-9]/.test(pw), // 특수문자
+    ];
+    return checks.filter(Boolean).length >= 3;
+  }, '대·소문자, 숫자, 특수문자 중 3종 이상을 포함해야 합니다');
+
+export const LoginFormSchema = z.object({
+  email: z.string().email('올바른 이메일 형식을 입력하세요'),
+  password: PasswordSchema,
+});
+```
 
 ## 🧪 Acceptance Criteria (BDD / GWT)
 Scenario 1: 로그인 성공 및 이동
@@ -58,13 +85,41 @@ Scenario 3: 클라이언트 밸리데이션
 - When: 로그인 폼을 제출하려 한다.
 - Then: API 요청이 전송되지 않고 입력 칸에 "비밀번호를 입력하세요" 오류가 표시된다.
 
+Scenario 4: 비밀번호 정책 검증 (REQ-NF-SEC-AUTH-003)
+- Given: 10자 이하이거나 대·소문자·숫자·특수문자 중 2종 이하로만 구성된 비밀번호를 입력했다.
+- When: 로그인 폼을 제출하려 한다.
+- Then: API 요청이 전송되지 않고 "비밀번호는 12자 이상, 3종 이상 문자 조합이 필요합니다" 오류가 표시된다.
+
+Scenario 5: 계정 잠금 (REQ-NF-SEC-AUTH-005)
+- Given: 동일 계정으로 5회 연속 잘못된 비밀번호를 입력하여 로그인에 실패했다.
+- When: 6번째 로그인 시도를 한다.
+- Then: API가 HTTP 429를 반환하고, 화면에 "계정이 잠겼습니다. 15분 후 다시 시도해주세요."라는 안내가 표시된다. 잠금 시간 카운트다운이 실시간으로 갱신된다.
+
+Scenario 6: 유휴 자동 로그아웃 (REQ-NF-SEC-AUTH-004)
+- Given: 로그인 성공 후 30분 이상 마우스·키보드 입력 없이 유휴 상태가 유지되었다.
+- When: 30분 경과 후 아무 동작(페이지 이동, 클릭 등)을 시도한다.
+- Then: 세션 만료 안내 모달이 표시되고 "확인" 클릭 시 로그인 페이지로 리다이렉트된다.
+
 ## 🔐 Technical / Domain Constraints
 - 상태 전이 규칙:
   - 로그인 성공 -> App Shell 마운트 -> Dashboard 라우팅
 - 공통 에러 스키마 연계:
   - `API-001`에서 정의된 `error_code`를 기반으로 다국어(또는 사용자 친화적) 에러 메시지로 매핑
+  - 계정 잠금 시 `ACCOUNT_LOCKED` 에러 코드 + `retry_after_seconds` 필드 활용
 - 보안 / 민감정보 처리:
   - 평문 비밀번호가 브라우저 콘솔 로그나 로컬 스토리지에 기록되지 않도록 주의
+  - 비밀번호 입력 필드는 `autocomplete="current-password"` 설정
+- 유휴 타임아웃:
+  - `mousemove`, `keydown`, `click` 이벤트를 디바운스(30초 간격)로 감지
+  - 마지막 활동 시점 + 30분 경과 시 세션 무효화 API 호출 후 리다이렉트
+
+### SRS 트레이서빌리티
+
+| SRS REQ ID | 요구사항 | 반영 위치 |
+|:---|:---|:---|
+| REQ-NF-SEC-AUTH-003 | 비밀번호 12자 이상, 3종 이상 문자 조합 | Scenario 4 + Zod 스키마 |
+| REQ-NF-SEC-AUTH-004 | 유휴 30분 자동 로그아웃 | Scenario 6 + Task Breakdown |
+| REQ-NF-SEC-AUTH-005 | 5회 연속 실패 시 15분 잠금 | Scenario 5 + Task Breakdown |
 
 ## 📦 Deliverables
 - 산출 문서/코드/테스트/Mock/연계 결과:

@@ -17,7 +17,7 @@
 
 | 레이어 | 주요 대상 문서 (실제 존재 확인) | 상태 |
 | :--- | :--- | :--- |
-| **상위 기준 문서** | `00_PRD_v1.md`, `00_PROJECT_CONTEXT_v1.md`, `01_TASK_LIST_v1.md`, `05_SRS_v1.md`, `08_DECISION_LOG_v1.md` | ✅ 완료 |
+| **상위 기준 문서** | `00_PRD_v1.md`, `00_PROJECT_CONTEXT_v1.md`, `01_TASK_LIST_v2.md`, `05_SRS_v1.md`, `08_DECISION_LOG_v1.md` | ✅ 완료 |
 | **공통 기준 문서** | `COM-AUTH_v1.md`, `API-001_common_error_schema.md`, `DATA-SCHEMA_v1.md`, `DATA-AUDIT_LOG_v1.md`, `ADM-BULK_v1.md`, `F1-AUDIT_v1.md`, `TEST-S1_ACCEPTANCE_v1.md` | ✅ 완료 |
 | **Bulk Import 레인** | `ADM-C-001`, `ADM-Q-001`, `API-002`, `COM-RH-001`, `DATA-011`, `MOCK-001`, `NFR-MON-001/002`, `TEST-ADM-001`, `UI-061`, `ADM-062` | ✅ 완료 |
 | **Smart Audit 핵심** | `F1-C-001`, `F1-C-002`, `F1-Q-001`, `F1-RH-001`, `API-003` | ✅ 완료 |
@@ -48,8 +48,11 @@
 | 상위/공통 명세 | 12개 | ✅ 100% 완료 | 개발 가이드라인 완비 |
 | Backend (로직/API) | 10개 | ✅ 100% 완료 | BE 즉시 착수 가능 |
 | Frontend (UI/Mock) | 11개 | ✅ 100% 완료 | Mock 기반 FE 병렬 착수 가능 |
-| QA & 운영 (Test/Mon) | 8개 | ✅ 100% 완료 | 인수 조건 명확함 |
-| **총계** | **41개** | **✅ 완료** | **문서 작성 단계 완료. 구현 진입 단계.** |
+| QA & 운영 (Test/Mon) | 12개 | ✅ 100% 완료 | 보안/규제 보완 문서 4개(가명처리, KMS, 노조 패널 등) 추가 |
+| **Sprint 1 보강 (T1-010~T1-014)** | **5개** | ✅ **명세 완료** | AI 품질 검증, KPI 관측, Fallback UX, PIPA 동의 이력 |
+| **총계** | **50개** | **✅ 완료** | **문서 작성 단계 완료. 구현 진입 단계.** |
+
+> **[변경 이력]** 2026-04-25: `01_TASK_LIST_v2.md`에서 식별된 T1-010~T1-014 태스크를 본 다이어그램에 반영 완료. `10_DETAILED_TASK_NODE_DIAGRAM_v1.md`(구버전, 본 문서와 중복)는 Archive 처리됨.
 
 ---
 
@@ -115,10 +118,6 @@ flowchart TD
         SRS["05_SRS_v1 ✅"]
         TL["01_TASK_LIST_v1 ✅"]
         DL["08_DECISION_LOG_v1 ✅"]
-        PRD --> SRS
-        CTX --> TL
-        SRS --> TL
-        DL --> TL
     end
 
     %% Common Core
@@ -127,67 +126,69 @@ flowchart TD
         ERR["API-001_common_error_schema ✅"]
         DS["DATA-SCHEMA_v1 ✅"]
         DA["DATA-AUDIT_LOG_v1 ✅"]
-        ACC["TEST-S1_ACCEPTANCE_v1 ✅"]
     end
     Base --> Common
 
     %% App Shell & Login
     subgraph AppEntry ["L3. 공통 진입/앱 프레임 레인"]
-        ARH["COM-RH-002_auth_route_handler ✅"]
+        ARH["COM-RH-002_auth_rh ✅"]
         LUI["UI-001_login_page ✅"]
-        SHL["UI-000_app_shell_layout ✅"]
+        SHL["UI-000_app_shell ✅"]
     end
-    AUTH --> ARH
-    ARH --> LUI
-    LUI --> SHL
+    AUTH --> ARH --> LUI --> SHL
 
-    %% Bulk Import
-    subgraph Bulk ["L4/5. Bulk Import 레인"]
-        B_SPEC["ADM-BULK_v1 ✅"]
-        B_CMD["ADM-C-001_job_mgmt ✅"]
-        B_QRY["ADM-Q-001_job_list ✅"]
-        B_DTO["API-002_bulk_dto ✅"]
+    %% Bulk Import & Zero-UI (STT)
+    subgraph InputPipelines ["L4/5. 데이터 입력 파이프라인 레인"]
         B_RH["COM-RH-001_bulk_rh ✅"]
-        B_UI["UI-061_admin_dashboard ✅"]
+        Z_API["API-AI_PIPELINE_v1 (STT) ✅"]
+        Z_UI["UI-010_workspace (마이크/가명처리) 🟡"]
     end
-    DS --> B_SPEC
-    B_SPEC --> B_CMD
-    B_SPEC --> B_QRY
-    B_CMD --> B_DTO
-    B_QRY --> B_DTO
-    B_DTO --> B_RH
-    B_RH --> B_UI
+    DS --> B_RH
+    DS --> Z_API --> Z_UI
+    SHL --> Z_UI
 
     %% Smart Audit Core
     subgraph Audit ["L4/5. Smart Audit 핵심 레인"]
-        A_SPEC["F1-AUDIT_v1 ✅"]
         A_SESS["F1-C-001_session_mgmt ✅"]
         A_REP["F1-C-002_report_gen ✅"]
-        A_QRY["F1-Q-001_report_query ✅"]
         A_DTO["API-003_report_dto ✅"]
         A_RH["F1-RH-001_audit_rh ✅"]
     end
-    DS --> A_SPEC
-    DA --> A_SPEC
-    A_SPEC --> A_SESS
-    A_SESS --> A_REP
-    A_REP --> A_QRY
-    A_QRY --> A_DTO
-    A_SESS --> A_DTO
+    DS --> A_SESS --> A_REP --> A_DTO --> A_RH
     ERR --> A_RH
-    A_DTO --> A_RH
+    DA --> A_RH
 
-    %% Smart Audit UI & Test
-    subgraph AuditTest ["L6. 검증 및 확장 레인"]
-        A_MOCK["MOCK-002/003 ✅"]
-        A_UI["UI-010_workspace / UI-011_list ✅"]
-        A_TST["TEST-F1-001/002 ✅"]
+    %% AI 품질 & 관측성 레인 (T1-010~T1-014 신규 반영)
+    subgraph AIQuality ["L4/5. AI 품질 검증 & 관측 레인 (Sprint 1 보강)"]
+        GD["T1-010 Golden Dataset ✅"]
+        AQP["T1-011 AI 품질 파이프라인 ✅"]
+        OBS["T1-012 Observability 스키마 ✅"]
+        FBK["T1-013 Fallback UX ✅"]
+        PIPA_LOG["T1-014 PIPA 동의 이력 ✅"]
     end
-    SHL --> A_UI
-    A_RH --> A_MOCK
-    A_MOCK --> A_UI
-    A_UI --> A_TST
-    ACC --> A_TST
+    Z_API --> GD --> AQP
+    A_SESS --> OBS
+    Z_UI --> FBK
+    AUTH --> PIPA_LOG
+
+    %% Lock-up & Release Gate
+    subgraph ComplianceGate ["🚨 L6. 규제 및 보안 락업 블로커 (Sprint 4)"]
+        SEC_PIPA["NFR-COMPLIANCE_v1 (PIPA 동의 강제) 🟡"]
+        SEC_LABOR["UI-ADMIN_LABOR (노조 합의 패널) 🟡"]
+        SEC_KMS["DATA-KMS_ERASURE (논리적 삭제) 🟡"]
+    end
+    
+    PIPA_LOG --> SEC_PIPA
+    A_RH --> SEC_PIPA
+    Z_UI --> SEC_LABOR
+    A_REP --> SEC_KMS
+
+    %% Final Release
+    RELEASE(("🚀 MVP 현장 배포 (Release)"))
+    SEC_PIPA & SEC_LABOR & SEC_KMS ===>|모든 락업 해제 시| RELEASE
+    
+    classDef blocker fill:#fff3cd,stroke:#856404,stroke-width:2px,stroke-dasharray: 5 5;
+    class SEC_PIPA,SEC_LABOR,SEC_KMS blocker;
 ```
 
 ### B. 집중도 높은 세부 다이어그램: Smart Audit 개발 착수 흐름
@@ -274,6 +275,7 @@ flowchart LR
 | **1. DB Schema와 DTO 간의 동기화 불일치** | 데이터 모델(`DATA-SCHEMA`)을 업데이트했으나, 응답 객체(`API-003`) Zod 검증을 누락하여 타입 오류 발생 | 백엔드 코드 작성 시 `API-001`의 에러 응답 규격을 항상 상속받아 Zod 스키마를 강제 적용하라. |
 | **2. Auth Context 부재로 인한 UI 진입 차단** | `UI-000_app_shell` 구현 없이 `UI-010_workspace` 화면부터 띄우려다가 권한 튕김 발생 | 무조건 `UI-000`의 전역 Auth Provider를 먼저 감싸라. 개발 전용으로 우회할 경우 Mock Auth Middleware를 사용하라. |
 | **3. API 개발 대기로 인한 FE 화면 개발 정지** | `F1-RH-001` 백엔드 로직이 길어져 프론트엔드 작업자가 손을 놓고 대기함 | `MOCK-002`, `MOCK-003` 명세를 바탕으로 API Route 단에 Mock 하드코딩 응답을 먼저 꽂아두고 병렬로 개발하라. |
+| **MVP 배포 전 규제 락업(노조 합의/PIPA 동의) 미해결** | 로직 개발이 완료되었더라도 락업 조건 미충족 시 현장 배포 불가 | NFR-COMPLIANCE에 정의된 락업 해제 조건이 만족되지 않으면 API 게이트웨이 단에서 배포를 차단하도록 설정하라. 코딩 영역 밖의 리스크이므로 즉시 PM에게 에스컬레이션하라. |
 
 ---
 
